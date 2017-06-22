@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-cmn-Hans">
+<head>
+    <title>狗扑新闻-——最新闻的新闻网站</title>
+
+    <meta charset="utf-8">
+    <meta name="author" content="卢旭辉,luxuhui12345@126.com">
+    <meta name="keywords" content="网易新闻,flask,新闻聚合,B/S">
+    <meta name="description" content="这是一个浙江大学B/S架构课程的新闻聚合网站">
+    <meta name="robot" content="none">
+    <meta name="generator" content="Pycharm">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='font-awesome/css/font-awesome.min.css')}}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/footer.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='pace/pace-theme-mac-osx.css') }}" />
+    <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}" />
+    <script src="{{ url_for('static', filename='pace/pace.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/lib/jquery.min.js') }}"></script>
+</head>
+{% block body %}
+    <div class="container" id="mainContainer">
+
+    {% block content %}
+        {% endblock %}
+    </div>
+{% endblock %}
+</html>
