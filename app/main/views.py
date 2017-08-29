@@ -1,157 +1,68 @@
-from flask import render_template, request, jsonify
+from flask import request, jsonify, g, abort
+from flask_httpauth import HTTPBasicAuth
 from . import main
-from ..models import NewsItem
 from ..models import User
-from .item import Item
+import json
 
-type_dict = {'news': '新闻', 'sports': '体育', 'ent': '娱乐', 'economy': "财经", 'war': '军事', 'car': '汽车', 'tech': '科技',
-             'mobile': '手机', 'digit': '数码', 'lady': '女性', 'edu': '教育', 'health': '健康', 'tour': '旅游', 'child': '亲子',
-             'home': '家居', 'house': '房产'}
+auth = HTTPBasicAuth()
 
+@auth.verify_password
+def verify_password(username_or_token, password):
+    user = User.verify_auth_token(username_or_token)
 
-@main.route('/')
-def index():
-    return render_template('index.html')
+    if True:
+        user = User.objects(user_username=username_or_token)[0]
 
+        if not user or not user.verify_password(password):
+            return False
 
-@main.app_errorhandler(404)
-def page_not_found(e):
-    return render_template('404.html'), 404
+    g.user = user
 
+    return True
 
-@main.errorhandler(500)
-def internal_server_error(e):
-    return render_template('500.html'), 500
+@main.route('/api/test')
+def get_testresult():
+    return "test"
 
+@main.route('/api/userinfo')
+@auth.login_required
+def get_userinfo():
 
-@main.route('/get_new', methods=['GET'])
-def get_new():
-    data = []
+    return jsonify(state="success", realname=g.user.user_realname, address=g.user.user_address, sex=g.user.user_sex, email=g.user.user_email)
 
-    # print(email);
-
-
-    for entry in NewsItem.objects.order_by("-news_date")[0:10]:
-        item = Item(entry.news_date, entry.news_title, entry.news_source, entry.news_content, entry.news_key,
-                    entry.news_type, entry.news_image, entry.news_digest)
-        news_item = convert_to_dict(item)
-        data.append(news_item)
-
-    return jsonify(state=True, data=data)
+@main.route('/api/token', methods=['GET'])
+@auth.login_required
+def get_token():
+    token = g.user.generate_auth_token(600)
+    return jsonify({'token': token.decode('ascii'), 'duration': 600})
 
 
-@main.route('/recommend', methods=['GET'])
-def recommend():
-    email = request.args['email']
-    hobby = User.objects(user_email=email)[0].user_hobby
 
-    if hobby == []:
-        return jsonify(state=True, data=[])
-
-    data = []
-
-    count = 0;
-    index = 0;
-
-    while True:
-        for type in hobby:
-            for entry in NewsItem.objects(news_type=type_dict[type]).order_by("-news_date")[index:index + 1]:
-                item = Item(entry.news_date, entry.news_title, entry.news_source, entry.news_content, entry.news_key,
-                            entry.news_type, entry.news_image, entry.news_digest)
-                news_item = convert_to_dict(item)
-                data.append(news_item)
-                count += 1
-            if count >= 10:
-                break
-        if count >= 10:
-            break
-        index += 1
-
-    return jsonify(state=True, data=data)
+@main.route('/api/users', methods=['POST'])
+def register_new_user():
+    req = json.loads(request.data.decode('utf-8'))
+    username = req['username']
+    realname = req['realname']
+    sex = req['sex']
+    password = req['password']
+    city = req['city'][0] + "/" + req['city'][1]
+    address = req['address']
+    email = req['email']
+    phone = req['prefix'] + '-' + req['phone']
 
 
-@main.route('/update', methods=['POST'])
-def update():
-    email = request.form['email']
-    hobby=[]
 
-    if request.form['hobby'] != '[]':
-        hobby = request.form['hobby'][2:-2].split('\",\"')
+    if not username or not realname or not sex or not password or not city or not address or not email or not phone:
+        return jsonify({"state": "fail", "message": "Please check your info is completed or not"})
 
-    User.objects(user_email=email).update_one(user_hobby=hobby)
+    if User.objects(user_username=username).first() is not None:
+        return jsonify({"state": "fail", "message": "username has been occupied"})
 
-    user = User.objects(user_email=email)
+    new_user = User(user_username=username, user_realname=realname, user_sex=sex, user_city=city, user_address=address,
+                    user_email=email, user_phone=phone)
 
-    item = user[0]
-
-    userInfo = {}
-
-    userInfo['nickname'] = item.user_nickname
-    userInfo['email'] = item.user_email
-    userInfo['hobby'] = item.user_hobby
+    new_user.hash_password(password)
+    new_user.save()
 
 
-    return jsonify(state=True, userInfo=userInfo)
-
-
-@main.route('/verify', methods=['GET'])
-def verify():
-    email = request.args['email']
-    password = request.args['password']
-
-    user = User.objects(user_email=email)
-
-    if user.count() == 0:
-        return jsonify(state=False, errormsg="不存在该用户名")
-
-    item = user[0]
-
-    userInfo = {}
-
-    if item.user_password == password:
-        userInfo['nickname'] = item.user_nickname
-        userInfo['email'] = item.user_email
-        userInfo['hobby'] = item.user_hobby
-        return jsonify(state=True, userInfo=userInfo)
-    else:
-        return jsonify(state=False, errormsg="密码错误")
-
-
-@main.route('/register', methods=['POST'])
-def register():
-    user = User()
-    user.user_nickname = request.form['nickname']
-    user.user_phone = request.form['phone']
-    user.user_password = request.form['password']
-    user.user_email = request.form['email']
-    user.user_hobby = []
-    user.save()
-    return jsonify(state='true')
-
-
-@main.route('/get_list', methods=['GET'])
-def getNews():
-    type = request.args['type']
-    page = int(request.args['page'])
-
-    news_type = type_dict[type]
-
-    data = []
-
-    page_beign = 20 * (page - 1)
-
-    page_end = 20 * page
-
-    for entry in NewsItem.objects(news_type=news_type)[page_beign:page_end]:
-        item = Item(entry.news_date, entry.news_title, entry.news_source, entry.news_content, entry.news_key,
-                    entry.news_type, entry.news_image, entry.news_digest)
-        news_item = convert_to_dict(item)
-        data.append(news_item)
-
-    return jsonify(status='success', data=data)
-
-
-def convert_to_dict(obj):
-    dict = {}
-    dict.update(obj.__dict__)
-    return dict
+    return jsonify({"state": "success", "message": "register successfully"})

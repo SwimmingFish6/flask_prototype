@@ -1,0 +1,9 @@
+# Created by .ignore support plugin (hsz.mobi)
+.gitignore
+migrations/
+tests/
+venv/include/
+app/static/js/node_modules/css-mediaquery/
+app/static/js/node_modules/hyphenate-style-name/
+app/static/js/node_modules/matchmedia/
+app/static/js/node_modules/react-responsive/
